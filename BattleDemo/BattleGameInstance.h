@@ -49,7 +49,17 @@ public:
 
 	void OnPostDemoPlay();
 
-	bool StartGame(ULocalPlayer* LocalPlayer, const FString& GameType, const FString& InTravelURL);
+	bool StartGame(const FString& InTravelURL);
+
+	bool LoadFromEndMap(const FString& MapName);
+
+#if WITH_EDITOR
+	/* Called to initialize the game instance for PIE instances of the game */
+	//virtual bool InitializePIE(bool bAnyBlueprintErrors, int32 PIEInstance, bool bRunAsDedicated);
+
+	//virtual bool StartPIEGameInstance(ULocalPlayer* LocalPlayer, bool bInSimulateInEditor, bool bAnyBlueprintErrors, bool bStartInSpectatorMode);
+
+#endif
 protected:
 	FName	CurrentState;
 	FName	PendingState;
@@ -59,6 +69,8 @@ protected:
 	FDelegateHandle	TickDelegateHandle;
 
 	FString TravelURL;
+
+	UDataTable*		LevelDataTable;
 
 	void BeginMainMenuState();
 
@@ -73,4 +85,9 @@ protected:
 	void EndWelcomeState();
 
 	void ShowLoadingScreen();
+
+	FString CurrentURL;
+	FString NextMap;
+	FString GameModeShortName;
+
 };

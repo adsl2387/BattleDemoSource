@@ -2,6 +2,9 @@
 
 #include "BattleDemo.h"
 #include "BattleGameInstance.h"
+#include "BattleLoadingScreen.h"
+#include "BatleGameViewportClient.h"
+#include "DataRow.h"
 
 
 namespace BattleGameState
@@ -29,12 +32,24 @@ void UBattleGameInstance::Init()
 
 	TickDelegate = FTickerDelegate::CreateUObject(this, &UBattleGameInstance::Tick);
 	TickDelegateHandle = FTicker::GetCoreTicker().AddTicker(TickDelegate);
+
+	static ConstructorHelpers::FObjectFinder<UDataTable> LevelTableData(TEXT("DataTable'/Game/GameData/Level.Level'"));
+	if (NULL != LevelTableData.Object)
+	{
+		LevelDataTable = LevelTableData.Object;
+	}
+	FLevelRow* InitLevelInfo = LevelDataTable->FindRow<FLevelRow>(FName(TEXT("StartMap")), FString(TEXT("")));
+
+	CurrentURL = FString::Printf(TEXT("%s?game=%s"), *InitLevelInfo->CurrentMapName, *InitLevelInfo->GameModeShortName);
+	//NextURL = InitLevelInfo->NextMapName;
+	NextMap = InitLevelInfo->NextMapName;
+	GameModeShortName = InitLevelInfo->GameModeShortName;
 }
 
 void UBattleGameInstance::StartGameInstance()
 {
 	//Super::StartGameInstance();
-
+	GoToInitialState();
 }
 
 void UBattleGameInstance::Shutdown()
@@ -61,7 +76,11 @@ void UBattleGameInstance::OnPreLoadMap()
 
 void UBattleGameInstance::OnPostLoadMap()
 {
-
+	UBatleGameViewportClient* BattleViewport = Cast<UBatleGameViewportClient>(GetGameViewportClient());
+	if (BattleViewport)
+	{
+		BattleViewport->HideLoadingScreen();
+	}
 }
 
 void UBattleGameInstance::HandleSafeFrameChanged()
@@ -132,13 +151,44 @@ void UBattleGameInstance::OnPostDemoPlay()
 	GoToState(BattleGameState::Playing);
 }
 
-bool UBattleGameInstance::StartGame(ULocalPlayer* LocalPlayer, const FString& GameType, const FString& InTravelURL)
+bool UBattleGameInstance::StartGame(const FString& InTravelURL)
 {
 	ShowLoadingScreen();
 	GoToState(BattleGameState::Playing);
 	TravelURL = InTravelURL;
 	GetWorld()->ServerTravel(TravelURL);
 	return true;
+}
+
+bool UBattleGameInstance::LoadFromEndMap(const FString& MapName)
+{
+	bool bSuccess = true;
+	UWorld* const World = GetWorld();
+
+	if (World)
+	{
+		FString CurrentMapName = *World->PersistentLevel->GetOutermost()->GetName();
+		if (CurrentMapName == MapName)
+		{
+			return bSuccess;
+		}
+	}
+
+	FString Error;
+	EBrowseReturnVal::Type BrowseRet = EBrowseReturnVal::Failure;
+	FURL URL(*FString::Printf(TEXT("%s"), *MapName));
+
+	if (URL.Valid && !HasAnyFlags(RF_ClassDefaultObject))
+	{
+		BrowseRet = GetEngine()->Browse(*WorldContext, URL, Error);
+
+		if (BrowseRet != EBrowseReturnVal::Success)
+		{
+			UE_LOG(LogLoad, Fatal, TEXT("%s"), *FString::Printf(TEXT("Failed to enter &s: %s. Please check the log for errors"), *MapName, *Error));
+			bSuccess = false;
+		}
+	}
+	return bSuccess;
 }
 
 void UBattleGameInstance::BeginMainMenuState()
@@ -163,7 +213,9 @@ void UBattleGameInstance::EndPlayingState()
 
 void UBattleGameInstance::BeginWelcomeState()
 {
-
+	//StartGame(getlocalpl)
+	//FURL URL(*FString::Printf(TEXT("%s"), *cur));
+	StartGame(CurrentURL);
 }
 
 void UBattleGameInstance::EndWelcomeState()
@@ -173,5 +225,17 @@ void UBattleGameInstance::EndWelcomeState()
 
 void UBattleGameInstance::ShowLoadingScreen()
 {
+	IBattleLoadingScreenModule* const LoadingScreenModule = FModuleManager::LoadModulePtr<IBattleLoadingScreenModule>("BattleLoadingScreenModule");
 
+	if (LoadingScreenModule != nullptr)
+	{
+		LoadingScreenModule->StartInGameLoadingScreen();
+	}
+
+	UBatleGameViewportClient* BattleViewport = Cast<UBatleGameViewportClient>(GetGameViewportClient());
+
+	if (BattleViewport != NULL)
+	{
+		BattleViewport->ShowLoadingScreen();
+	}
 }

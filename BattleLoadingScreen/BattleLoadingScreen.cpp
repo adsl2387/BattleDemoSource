@@ -58,7 +58,7 @@ public:
 					.Visibility(this, &SBattleLoadingScreen::GetLoadIndicatorVisibility)
 				]
 			]
-		]
+		];
 	}
 private:
 
@@ -86,7 +86,7 @@ public:
 		}
 	}
 
-	virtual bool IsGameModule() override
+	virtual bool IsGameModule() const override
 	{
 		return true;
 	}
